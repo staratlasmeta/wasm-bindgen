@@ -72,12 +72,38 @@ pub fn process(
     cx.init()?;
 
     for program in programs {
+        println!(
+            "Program items: {:#?}",
+            program
+                .structs
+                .iter()
+                .map(|strct| strct.name.to_string())
+                .chain(
+                    program
+                        .enums
+                        .iter()
+                        .map(|enm| enm.name.to_string())
+                        .collect::<Vec<String>>()
+                )
+                .chain(
+                    program
+                        .exports
+                        .iter()
+                        .map(|export| export.function.name.to_string())
+                        .collect::<Vec<String>>()
+                )
+                .collect::<Vec<String>>()
+        );
         cx.program(program)?;
     }
+
+    // println!("Adapters after program: {:#?}", cx.adapters);
 
     if !cx.start_found {
         cx.discover_main()?;
     }
+
+    // println!("Adapters after discover_main: {:#?}", cx.adapters);
 
     cx.verify()?;
 
@@ -408,8 +434,12 @@ impl<'a> Context<'a> {
         if let Some(s) = package_json {
             self.aux.package_jsons.insert(s.into());
         }
+
         for export in exports {
+            println!("Export: {:?}", export.function.name);
+            // println!("Adapters before export: {:?}", self.adapters);
             self.export(export)?;
+            // println!("Adapters after export: {:?}", self.adapters);
         }
 
         let offset = self
@@ -515,7 +545,13 @@ impl<'a> Context<'a> {
             None => AuxExportKind::Function(export.function.name.to_string()),
         };
 
+        // println!("Adapters before export_adapter: {:?}", self.adapters);
+
         let id = self.export_adapter(export_id, descriptor)?;
+
+        // println!("Adapters after export_adapter: {:?}", self.adapters);
+
+        println!("Export kind: {:?}", kind);
         self.aux.export_map.insert(
             id,
             AuxExport {
@@ -1202,6 +1238,7 @@ impl<'a> Context<'a> {
         // Do the actual heavy lifting elsewhere to generate the `binding`.
         let call = Instruction::CallExport(export.id());
         let id = self.register_export_adapter(call, signature)?;
+        println!("Adapter after register: {:#?}", self.adapters);
         self.adapters.exports.push((name, id));
         Ok(id)
     }
@@ -1260,6 +1297,7 @@ impl<'a> Context<'a> {
     ) -> Result<AdapterId, Error> {
         // Figure out how to translate all the incoming arguments ...
         let mut args = self.instruction_builder(false);
+        println!("Export adapter signature: {:#?}", signature);
         for arg in signature.arguments.iter() {
             args.incoming(arg)?;
         }
@@ -1268,6 +1306,7 @@ impl<'a> Context<'a> {
 
         let inner_ret_output = if signature.inner_ret.is_some() {
             let mut inner_ret = args.cx.instruction_builder(true);
+            println!("Inner ret: {:#?}", signature.inner_ret);
             inner_ret.outgoing(&signature.inner_ret.unwrap())?;
             inner_ret.output
         } else {
@@ -1275,8 +1314,10 @@ impl<'a> Context<'a> {
         };
 
         let mut ret = args.cx.instruction_builder(true);
+        println!("Ret: {:#?}", signature.ret);
         ret.outgoing(&signature.ret)?;
         let uses_retptr = ret.input.len() > 1;
+        println!("Uses retptr: {}", uses_retptr);
 
         // Our instruction stream starts out with the return pointer as the first
         // argument to the wasm function, if one is in use. Then we convert
@@ -1288,6 +1329,7 @@ impl<'a> Context<'a> {
         let mut instructions = Vec::new();
         if uses_retptr {
             let size = ret.input.iter().fold(0, |sum, ty| {
+                println!("Sum: {}", sum);
                 let size = match ty {
                     AdapterType::I32 => 4,
                     AdapterType::I64 => 8,
@@ -1295,7 +1337,9 @@ impl<'a> Context<'a> {
                     AdapterType::F64 => 8,
                     _ => panic!("unsupported type in retptr {:?}", ty),
                 };
+                println!("Size: {}", size);
                 let sum_rounded_up = (sum + (size - 1)) & (!(size - 1));
+                println!("Sum rounded up: {}", sum_rounded_up);
                 sum_rounded_up + size
             });
             // Round the number of bytes up to a 16-byte alignment to ensure the
@@ -1319,6 +1363,7 @@ impl<'a> Context<'a> {
             let mem = ret.cx.memory()?;
             let mut unpacker = StructUnpacker::new();
             for ty in ret.input.into_iter() {
+                println!("Ty: {:?}", ty);
                 let offset = unpacker.read_ty(&ty)?;
                 instructions.push(InstructionData {
                     instr: Instruction::LoadRetptr { offset, ty, mem },
@@ -1591,4 +1636,18 @@ fn test_struct_packer() {
     assert_eq!(read_ty(double), 2); // f64, already aligned
     assert_eq!(read_ty(i32___), 4); // u32, already aligned
     assert_eq!(read_ty(double), 6); // f64, NOT already aligned, skips up to offset 6
+}
+
+#[test]
+fn understand_bitwise() {
+    // (sum + (size - 1)) & (!(size - 1));
+    let sum = 0;
+    let size = 4;
+    let left: u32 = sum + (size - 1);
+    let right: u32 = !(size - 1);
+    println!("Left: {left:b}, Right: {right:b}");
+
+    let size = 17;
+    let rounded_up: u32 = (size + 15) & (!15);
+    println!("Rounded up: {rounded_up:b} == {rounded_up}");
 }

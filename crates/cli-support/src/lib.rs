@@ -372,6 +372,11 @@ impl Bindgen {
         // sections.
         descriptors::execute(&mut module)?;
 
+        println!(
+            "Adapters before process: {:#?}",
+            module.customs.get_typed::<wit::NonstandardWitSection>()
+        );
+
         // Process the custom section we extracted earlier. In its stead insert
         // a forward-compatible wasm interface types section as well as an
         // auxiliary section for all sorts of miscellaneous information and
@@ -384,6 +389,11 @@ impl Bindgen {
             thread_count,
             self.emit_start,
         )?;
+
+        // println!(
+        //     "Adapters after process: {:#?}",
+        //     module.customs.get_typed::<wit::NonstandardWitSection>()
+        // );
 
         // Now that we've got type information from the webidl processing pass,
         // touch up the output of rustc to insert externref shims where necessary.
@@ -436,6 +446,7 @@ impl Bindgen {
             .customs
             .delete_typed::<wit::NonstandardWitSection>()
             .unwrap();
+        // println!("adapters before js cx: {:#?}", adapters);
         let mut cx = js::Context::new(&mut module, self, &adapters, &aux)?;
         cx.generate()?;
         let (js, ts, start) = cx.finalize(stem)?;

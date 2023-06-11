@@ -15,6 +15,7 @@ use cfg_if::cfg_if;
 if_std! {
     use core::mem;
     use crate::convert::OptionFromWasmAbi;
+    use core::convert::TryInto;
 }
 
 #[repr(C)]
@@ -373,3 +374,33 @@ if_std! {
         fn is_none(slice: &WasmSlice) -> bool { slice.ptr == 0 }
     }
 }
+
+macro_rules! arrays {
+    ($($t:ty)*) => ($(
+        if_std! {
+            impl<const LEN: usize> IntoWasmAbi for [$t; LEN] {
+                type Abi = u32;
+
+                #[inline]
+                fn into_abi(self) -> Self::Abi {
+                    let boxed = Box::new(self);
+                    let ptr = boxed.as_ptr();
+                    std::mem::forget(boxed);
+                    ptr.into_abi()
+                }
+            }
+            impl<const LEN: usize> FromWasmAbi for [$t; LEN] {
+                type Abi = u32;
+
+                #[inline]
+                unsafe fn from_abi(js: Self::Abi) -> [$t; LEN] {
+                    let ptr = FromWasmAbi::from_abi(js);
+                    let slice = std::slice::from_raw_parts(ptr, LEN);
+                    slice.try_into().unwrap()
+                }
+            }
+        }
+    )*)
+}
+
+arrays!(u8 u16 u32 u64 i8 i16 i32 i64 f32 f64);

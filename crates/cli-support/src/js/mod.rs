@@ -1,4 +1,4 @@
-use crate::descriptor::VectorKind;
+use crate::descriptor::{FixedArrayKind, VectorKind};
 use crate::intrinsic::Intrinsic;
 use crate::wit::{
     Adapter, AdapterId, AdapterJsImportKind, AdapterType, AuxExportedMethodKind, AuxReceiverKind,
@@ -2060,6 +2060,25 @@ impl<'a> Context<'a> {
             VectorKind::F64 => self.expose_get_array_f64_from_wasm(memory),
             VectorKind::Externref => self.expose_get_array_js_value_from_wasm(memory)?,
             VectorKind::NamedExternref(_) => self.expose_get_array_js_value_from_wasm(memory)?,
+        })
+    }
+
+    fn expose_get_array_from_wasm(
+        &mut self,
+        ty: FixedArrayKind,
+        memory: MemoryId,
+    ) -> Result<MemView, Error> {
+        Ok(match ty {
+            FixedArrayKind::U8 => self.expose_get_array_u8_from_wasm(memory),
+            FixedArrayKind::I8 => self.expose_get_array_i8_from_wasm(memory),
+            FixedArrayKind::U16 => self.expose_get_array_u16_from_wasm(memory),
+            FixedArrayKind::I16 => self.expose_get_array_i16_from_wasm(memory),
+            FixedArrayKind::U32 => self.expose_get_array_u32_from_wasm(memory),
+            FixedArrayKind::I32 => self.expose_get_array_i32_from_wasm(memory),
+            FixedArrayKind::U64 => self.expose_get_array_u64_from_wasm(memory),
+            FixedArrayKind::I64 => self.expose_get_array_i64_from_wasm(memory),
+            FixedArrayKind::F32 => self.expose_get_array_f32_from_wasm(memory),
+            FixedArrayKind::F64 => self.expose_get_array_f64_from_wasm(memory),
         })
     }
 

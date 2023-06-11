@@ -9,6 +9,7 @@ use crate::js::Context;
 use crate::wit::InstructionData;
 use crate::wit::{Adapter, AdapterId, AdapterKind, AdapterType, Instruction};
 use anyhow::{anyhow, bail, Error};
+use std::convert::TryInto;
 use std::fmt::Write;
 use walrus::{Module, ValType};
 
@@ -821,7 +822,6 @@ fn instruction(js: &mut JsBuilder, instr: &Instruction, log_error: &mut bool) ->
         }
 
         Instruction::VectorToMemory { kind, malloc, mem } => {
-            js.prelude("VectorToMemory");
             let val = js.pop();
             let func = js.cx.pass_to_wasm_function(kind.clone(), *mem)?;
             let malloc = js.cx.export_name_of(*malloc);
@@ -837,7 +837,6 @@ fn instruction(js: &mut JsBuilder, instr: &Instruction, log_error: &mut bool) ->
             js.push(format!("ptr{}", i));
             js.push(format!("len{}", i));
         }
-
         Instruction::UnwrapResult { table_and_drop } => {
             let take_object = if let Some((table, drop)) = *table_and_drop {
                 js.cx
@@ -1090,8 +1089,6 @@ fn instruction(js: &mut JsBuilder, instr: &Instruction, log_error: &mut bool) ->
         }
 
         Instruction::VectorLoad { kind, mem, free } => {
-            js.prelude("VectorLoad");
-
             let len = js.pop();
             let ptr = js.pop();
             let f = js.cx.expose_get_vector_from_wasm(kind.clone(), *mem)?;
@@ -1108,50 +1105,36 @@ fn instruction(js: &mut JsBuilder, instr: &Instruction, log_error: &mut bool) ->
             js.push(format!("v{}", i))
         }
 
-        Instruction::WasmToFixedArray { kind, length } => {
-            js.prelude("WasmToFixedArray");
-            println!("Stack: {:?}", js.stack);
+        Instruction::WasmToFixedArray {
+            kind,
+            mem,
+            free,
+            length,
+        } => {
             let ptr = js.pop();
-
-            // let f = js.cx.expose_get_vector_from_wasm(kind.clone()), *mem)?;
-            // Need to convert to JS num here
-            // let convert_to_js_num = |val: &str| -> String {
-            //     match kind {
-            //         AdapterType::U32 => format!("{} >>> 0", val),
-            //         AdapterType::U64 => format!("BigInt.asUintN(64, {val})"),
-            //         _ => val.to_string(),
-            //     }
-            // };
-            // let mut to_ret = (0..*length)
-            //     .map(|_| {
-            //         let val = js.pop();
-            //         convert_to_js_num(&val)
-            //     })
-            //     .collect::<Vec<_>>();
-            // to_ret.reverse();
-            // js.push(format!("[{}]", to_ret.join(", ")));
+            let f = js.cx.expose_get_array_from_wasm(kind.clone(), *mem)?;
+            let free = js.cx.export_name_of(*free);
+            let i = js.tmp();
+            js.prelude(&format!("var v{i} = {f}({ptr}, {length})"));
+            js.prelude(&format!("wasm.{free}({ptr}, {length} * {});", kind.size()));
+            js.push(format!("v{}", i));
         }
 
-        Instruction::FixedArrayToWasm { kind, length } => {
-            js.prelude("FixedArrayToWasm");
-            println!("Stack: {:?}", js.stack);
-
+        Instruction::FixedArrayToWasm {
+            kind,
+            mem,
+            malloc,
+            length,
+        } => {
             let input = js.pop();
-            let retptr = js.push("hi".to_string());
-            let retptr = js.push("hi".to_string());
-            js.prelude(&format!("if ({input}.length !== {length}) {{\n throw new Error(`Expected an Array of length {length}, received array of length ${{{input}.length}}`);\n}}"));
-            // if matches!(kind, AdapterType::I64 | AdapterType::S64 | AdapterType::U64) {
-            //     js.assert_bigint(&element);
-            // } else {
-            //     js.assert_number(&element);
-            // }
-            // let elements = (0..*length)
-            //     .map(|i| format!("{}[{}]", input, i))
-            //     .collect::<Vec<_>>();
-            for i in 0..*length {
-                let element = format!("{}[{}]", input, i);
-                js.push(element);
-            }
+            let func = js
+                .cx
+                .pass_to_wasm_function(kind.clone().try_into().unwrap(), *mem)?;
+            let malloc = js.cx.export_name_of(*malloc);
+            let i = js.tmp();
+            js.prelude(&format!("const ptr{i} = {func}({input}, wasm.{malloc});"));
+            js.prelude(&format!("if (WASM_VECTOR_LEN !== {length}) {{\n throw new Error(`Expected an Array of length {length}, received array of length ${{WASM_VECTOR_LEN}}`);\n}}"));
+            js.push(format!("ptr{i}"));
         }
 
         Instruction::OptionVectorLoad { kind, mem, free } => {
@@ -1353,10 +1336,8 @@ fn adapter2ts(ty: &AdapterType, dst: &mut String) {
         AdapterType::NamedExternref(name) => dst.push_str(name),
         AdapterType::Struct(name) => dst.push_str(name),
         AdapterType::Function => dst.push_str("any"),
-        AdapterType::Array(ty, _) => {
-            let mut inner = String::new();
-            adapter2ts(ty, &mut inner);
-            dst.push_str(&format!("Array<{}>", inner));
+        AdapterType::Array(kind, _) => {
+            dst.push_str(&kind.js_ty());
         }
     }
 }

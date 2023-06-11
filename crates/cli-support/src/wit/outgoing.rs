@@ -156,50 +156,22 @@ impl InstructionBuilder<'_, '_> {
             Descriptor::Unit => {}
 
             Descriptor::FixedArray(d, length) => {
-                // let (output_ty, input_ty) = match d.deref() {
-                //     Descriptor::U8 => (AdapterType::U8, AdapterType::I32),
-                //     Descriptor::I8 => (AdapterType::S8, AdapterType::I32),
-                //     Descriptor::U16 => (AdapterType::U16, AdapterType::I32),
-                //     Descriptor::I16 => (AdapterType::S16, AdapterType::I32),
-                //     Descriptor::U32 => (AdapterType::U32, AdapterType::I32),
-                //     Descriptor::I32 => (AdapterType::S32, AdapterType::I32),
-                //     Descriptor::U64 => (AdapterType::U64, AdapterType::I64),
-                //     Descriptor::I64 => (AdapterType::S64, AdapterType::I64),
-                //     Descriptor::F32 => (AdapterType::F32, AdapterType::F32),
-                //     Descriptor::F64 => (AdapterType::F64, AdapterType::F64),
-                //     d => unimplemented!("unsupported type for fixed size arrays: {d:?}",),
-                // };
-                // let inputs = (0..*length).map(|_| input_ty.clone()).collect::<Vec<_>>();
-                // let instr = Instruction::WasmToFixedArray {
-                //     kind: output_ty.clone(),
-                //     length: *length as usize,
-                // };
-                // self.instruction(
-                //     &inputs,
-                //     instr,
-                //     &[AdapterType::Array(Box::new(output_ty), *length as usize)],
-                // );
-                let output_ty = match d.deref() {
-                    Descriptor::U8 => AdapterType::U8,
-                    Descriptor::I8 => AdapterType::S8,
-                    Descriptor::U16 => AdapterType::U16,
-                    Descriptor::I16 => AdapterType::S16,
-                    Descriptor::U32 => AdapterType::U32,
-                    Descriptor::I32 => AdapterType::S32,
-                    Descriptor::U64 => AdapterType::U64,
-                    Descriptor::I64 => AdapterType::S64,
-                    Descriptor::F32 => AdapterType::F32,
-                    Descriptor::F64 => AdapterType::F64,
-                    d => unimplemented!("unsupported type for fixed size arrays: {d:?}",),
-                };
+                let array_kind = arg.fixed_array_kind().ok_or_else(|| {
+                    format_err!(
+                        "unsupported argument type for calling JS function from Rust {:?}",
+                        arg
+                    )
+                })?;
                 let instr = Instruction::WasmToFixedArray {
-                    kind: output_ty.clone(),
+                    kind: array_kind.clone(),
+                    mem: self.cx.memory()?,
+                    free: self.cx.free()?,
                     length: *length as usize,
                 };
                 self.instruction(
-                    &[AdapterType::I32, AdapterType::I32],
+                    &[AdapterType::I32],
                     instr,
-                    &[AdapterType::Array(Box::new(output_ty), *length as usize)],
+                    &[AdapterType::Array(array_kind, *length as usize)],
                 );
             }
 

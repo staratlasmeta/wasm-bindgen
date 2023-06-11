@@ -1,3 +1,4 @@
+use core::convert::TryFrom;
 use std::char;
 
 macro_rules! tys {
@@ -110,6 +111,39 @@ pub enum VectorKind {
     NamedExternref(String),
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum FixedArrayKind {
+    U8,
+    I8,
+    U16,
+    I16,
+    U32,
+    I32,
+    U64,
+    I64,
+    F32,
+    F64,
+}
+
+impl TryFrom<FixedArrayKind> for VectorKind {
+    type Error = ();
+    fn try_from(value: FixedArrayKind) -> Result<Self, Self::Error> {
+        let ret = match value {
+            FixedArrayKind::U8 => VectorKind::U8,
+            FixedArrayKind::I8 => VectorKind::I8,
+            FixedArrayKind::U16 => VectorKind::U16,
+            FixedArrayKind::I16 => VectorKind::I16,
+            FixedArrayKind::U32 => VectorKind::U32,
+            FixedArrayKind::I32 => VectorKind::I32,
+            FixedArrayKind::U64 => VectorKind::U64,
+            FixedArrayKind::I64 => VectorKind::I64,
+            FixedArrayKind::F32 => VectorKind::F32,
+            FixedArrayKind::F64 => VectorKind::F64,
+        };
+        Ok(ret)
+    }
+}
+
 impl Descriptor {
     pub fn decode(mut data: &[u32]) -> Descriptor {
         let descriptor = Descriptor::_decode(&mut data, false);
@@ -218,6 +252,26 @@ impl Descriptor {
             _ => None,
         }
     }
+
+    pub fn fixed_array_kind(&self) -> Option<FixedArrayKind> {
+        let inner = match *self {
+            Descriptor::FixedArray(ref d, _) => &**d,
+            _ => return None,
+        };
+        match *inner {
+            Descriptor::U8 => Some(FixedArrayKind::U8),
+            Descriptor::I8 => Some(FixedArrayKind::I8),
+            Descriptor::U16 => Some(FixedArrayKind::U16),
+            Descriptor::I16 => Some(FixedArrayKind::I16),
+            Descriptor::U32 => Some(FixedArrayKind::U32),
+            Descriptor::I32 => Some(FixedArrayKind::I32),
+            Descriptor::U64 => Some(FixedArrayKind::U64),
+            Descriptor::I64 => Some(FixedArrayKind::I64),
+            Descriptor::F32 => Some(FixedArrayKind::F32),
+            Descriptor::F64 => Some(FixedArrayKind::F64),
+            _ => None,
+        }
+    }
 }
 
 fn get(a: &mut &[u32]) -> u32 {
@@ -300,6 +354,38 @@ impl VectorKind {
             VectorKind::F64 => 8,
             VectorKind::Externref => 4,
             VectorKind::NamedExternref(_) => 4,
+        }
+    }
+}
+
+impl FixedArrayKind {
+    pub fn js_ty(&self) -> String {
+        match *self {
+            FixedArrayKind::U8 => "Uint8Array".to_string(),
+            FixedArrayKind::I8 => "Int8Array".to_string(),
+            FixedArrayKind::U16 => "Uint16Array".to_string(),
+            FixedArrayKind::I16 => "Int16Array".to_string(),
+            FixedArrayKind::U32 => "Uint32Array".to_string(),
+            FixedArrayKind::I32 => "Int32Array".to_string(),
+            FixedArrayKind::U64 => "BigUint64Array".to_string(),
+            FixedArrayKind::I64 => "BigInt64Array".to_string(),
+            FixedArrayKind::F32 => "Float32Array".to_string(),
+            FixedArrayKind::F64 => "Float64Array".to_string(),
+        }
+    }
+
+    pub fn size(&self) -> usize {
+        match *self {
+            FixedArrayKind::U8 => 1,
+            FixedArrayKind::I8 => 1,
+            FixedArrayKind::U16 => 2,
+            FixedArrayKind::I16 => 2,
+            FixedArrayKind::U32 => 4,
+            FixedArrayKind::I32 => 4,
+            FixedArrayKind::U64 => 8,
+            FixedArrayKind::I64 => 8,
+            FixedArrayKind::F32 => 4,
+            FixedArrayKind::F64 => 8,
         }
     }
 }

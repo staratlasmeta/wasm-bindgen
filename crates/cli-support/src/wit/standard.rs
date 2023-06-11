@@ -1,4 +1,4 @@
-use crate::descriptor::VectorKind;
+use crate::descriptor::{FixedArrayKind, VectorKind};
 use crate::wit::{AuxImport, WasmBindgenAux};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
@@ -87,7 +87,7 @@ pub enum AdapterType {
     Struct(String),
     NamedExternref(String),
     Function,
-    Array(Box<AdapterType>, usize),
+    Array(FixedArrayKind, usize),
 }
 
 #[derive(Debug, Clone)]
@@ -279,11 +279,15 @@ pub enum Instruction {
         free: walrus::FunctionId,
     },
     FixedArrayToWasm {
-        kind: AdapterType,
+        kind: FixedArrayKind,
+        mem: walrus::MemoryId,
+        malloc: walrus::FunctionId,
         length: usize,
     },
     WasmToFixedArray {
-        kind: AdapterType,
+        kind: FixedArrayKind,
+        mem: walrus::MemoryId,
+        free: walrus::FunctionId,
         length: usize,
     },
     /// pops i32, loads externref from externref table
@@ -448,13 +452,18 @@ impl walrus::CustomSection for NonstandardWitSection {
                         roots.push_memory(mem);
                         roots.push_func(malloc);
                     }
+                    FixedArrayToWasm { malloc, mem, .. } => {
+                        roots.push_memory(mem);
+                        roots.push_func(malloc);
+                    }
                     MutableSliceToMemory { malloc, mem, .. } => {
                         roots.push_memory(mem);
                         roots.push_func(malloc);
                     }
                     VectorLoad { free, mem, .. }
                     | OptionVectorLoad { free, mem, .. }
-                    | CachedStringLoad { free, mem, .. } => {
+                    | CachedStringLoad { free, mem, .. }
+                    | WasmToFixedArray { mem, free, .. } => {
                         roots.push_memory(mem);
                         roots.push_func(free);
                     }

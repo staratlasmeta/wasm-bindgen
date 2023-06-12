@@ -2040,6 +2040,22 @@ impl<'a> Context<'a> {
         }
     }
 
+    fn pass_array_to_wasm_function(
+        &mut self,
+        t: FixedArrayKind,
+        memory: MemoryId,
+    ) -> Result<MemView, Error> {
+        match t {
+            FixedArrayKind::I8 | FixedArrayKind::U8 => self.expose_pass_array8_to_wasm(memory),
+            FixedArrayKind::U16 | FixedArrayKind::I16 => self.expose_pass_array16_to_wasm(memory),
+            FixedArrayKind::I32 | FixedArrayKind::U32 => self.expose_pass_array32_to_wasm(memory),
+            FixedArrayKind::I64 | FixedArrayKind::U64 => self.expose_pass_array64_to_wasm(memory),
+            FixedArrayKind::F32 => self.expose_pass_array_f32_to_wasm(memory),
+            FixedArrayKind::F64 => self.expose_pass_array_f64_to_wasm(memory),
+            FixedArrayKind::RustStruct(_) => todo!("passing rust structs to wasm"),
+        }
+    }
+
     fn expose_get_vector_from_wasm(
         &mut self,
         ty: VectorKind,
@@ -2079,6 +2095,7 @@ impl<'a> Context<'a> {
             FixedArrayKind::I64 => self.expose_get_array_i64_from_wasm(memory),
             FixedArrayKind::F32 => self.expose_get_array_f32_from_wasm(memory),
             FixedArrayKind::F64 => self.expose_get_array_f64_from_wasm(memory),
+            FixedArrayKind::RustStruct(_) => self.expose_get_array_u32_from_wasm(memory),
         })
     }
 

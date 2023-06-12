@@ -7,5 +7,5 @@ mod slices;
 mod traits;
 
 pub use self::impls::*;
-pub use self::slices::WasmSlice;
+pub use self::slices::{WasmSlice, WasmStructArray};
 pub use self::traits::*;

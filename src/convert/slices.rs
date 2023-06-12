@@ -10,6 +10,7 @@ use crate::convert::OptionIntoWasmAbi;
 use crate::convert::{
     FromWasmAbi, IntoWasmAbi, LongRefFromWasmAbi, RefFromWasmAbi, RefMutFromWasmAbi, WasmAbi,
 };
+use crate::describe::WasmDescribe;
 use cfg_if::cfg_if;
 
 if_std! {
@@ -404,3 +405,39 @@ macro_rules! arrays {
 }
 
 arrays!(u8 u16 u32 u64 i8 i16 i32 i64 f32 f64);
+
+// ABI must be a u32 pointer. Only on structs. TODO: make better docs on this trait
+pub unsafe trait WasmStructArray:
+    WasmDescribe + IntoWasmAbi<Abi = u32> + FromWasmAbi<Abi = u32> + Copy
+{
+}
+
+if_std! {
+    impl<const LEN: usize, T: WasmStructArray> IntoWasmAbi for [T; LEN]
+    {
+        type Abi = u32;
+
+        #[inline]
+        fn into_abi(self) -> Self::Abi {
+            let mut arr: [<T as IntoWasmAbi>::Abi; LEN] = [Default::default(); LEN];
+            for i in 0..LEN {
+                arr[i] = self[i].into_abi();
+            }
+            let boxed = Box::new(arr);
+            let ptr = boxed.as_ptr();
+            std::mem::forget(boxed);
+            ptr.into_abi()
+        }
+    }
+    impl<const LEN: usize, T: WasmStructArray> FromWasmAbi for [T; LEN]
+    {
+        type Abi = u32;
+
+        #[inline]
+        unsafe fn from_abi(js: Self::Abi) -> [T; LEN] {
+            let arr: [<T as FromWasmAbi>::Abi; LEN] = FromWasmAbi::from_abi(js);
+            let vec = arr.iter().map(|x| T::from_abi(*x)).collect::<Vec<_>>();
+            vec.as_slice().try_into().unwrap()
+        }
+    }
+}

@@ -197,6 +197,8 @@ impl ToTokens for ast::Struct {
                 }
             }
 
+            unsafe impl #wasm_bindgen::convert::WasmStructArray for #name {}
+
             #[automatically_derived]
             impl #wasm_bindgen::convert::FromWasmAbi for #name {
                 type Abi = u32;

@@ -123,25 +123,7 @@ pub enum FixedArrayKind {
     I64,
     F32,
     F64,
-}
-
-impl TryFrom<FixedArrayKind> for VectorKind {
-    type Error = ();
-    fn try_from(value: FixedArrayKind) -> Result<Self, Self::Error> {
-        let ret = match value {
-            FixedArrayKind::U8 => VectorKind::U8,
-            FixedArrayKind::I8 => VectorKind::I8,
-            FixedArrayKind::U16 => VectorKind::U16,
-            FixedArrayKind::I16 => VectorKind::I16,
-            FixedArrayKind::U32 => VectorKind::U32,
-            FixedArrayKind::I32 => VectorKind::I32,
-            FixedArrayKind::U64 => VectorKind::U64,
-            FixedArrayKind::I64 => VectorKind::I64,
-            FixedArrayKind::F32 => VectorKind::F32,
-            FixedArrayKind::F64 => VectorKind::F64,
-        };
-        Ok(ret)
-    }
+    RustStruct(String),
 }
 
 impl Descriptor {
@@ -269,6 +251,7 @@ impl Descriptor {
             Descriptor::I64 => Some(FixedArrayKind::I64),
             Descriptor::F32 => Some(FixedArrayKind::F32),
             Descriptor::F64 => Some(FixedArrayKind::F64),
+            Descriptor::RustStruct(ref name) => Some(FixedArrayKind::RustStruct(name.clone())),
             _ => None,
         }
     }
@@ -371,6 +354,9 @@ impl FixedArrayKind {
             FixedArrayKind::I64 => "BigInt64Array".to_string(),
             FixedArrayKind::F32 => "Float32Array".to_string(),
             FixedArrayKind::F64 => "Float64Array".to_string(),
+            FixedArrayKind::RustStruct(ref name) => {
+                format!("({})[]", name)
+            }
         }
     }
 
@@ -386,6 +372,7 @@ impl FixedArrayKind {
             FixedArrayKind::I64 => 8,
             FixedArrayKind::F32 => 4,
             FixedArrayKind::F64 => 8,
+            FixedArrayKind::RustStruct(_) => 4,
         }
     }
 }
